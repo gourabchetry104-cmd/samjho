@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Samjho: AI whiteboard tutor</title>
+<meta name="description" content="Samjho is an AI whiteboard tutor. Ask anything, by typing or speaking, and watch it explained and drawn step by step, in English or Hindi.">
+<meta name="theme-color" content="#fffaf0">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Samjho">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Inter:wght@400;500;600;700&family=Kalam:wght@400;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="top">
+  <a class="logo" href="#" id="logo" aria-label="Samjho">sam<span>jho</span></a>
+  <nav class="nav">
+    <a href="#how" data-i18n="how">How it works</a>
+    <a href="#faq" data-i18n="faq">FAQ</a>
+  </nav>
+  <div class="top-right">
+    <button class="pill" id="langBtn" aria-label="Language">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg>
+      <span id="langLabel">EN</span>
+    </button>
+    <button class="link" id="signinBtn" data-i18n="signin">Sign in</button>
+    <button class="btn dark" id="startFreeBtn" data-i18n="startfree">Start free</button>
+    <div class="user" id="userBox" hidden>
+      <span class="avatar" id="avatar"></span>
+      <button class="link" id="signoutBtn" data-i18n="signout">Sign out</button>
+    </div>
+  </div>
+</header>
+
+<main>
+<!-- HOME -->
+<section id="home" class="view">
+  <h1 class="hero"><span data-i18n="h1a">Not getting it?</span> <mark data-i18n="h1b">Watch it drawn out.</mark></h1>
+  <p class="sub" data-i18n="sub"></p>
+
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-mode="topic" role="tab">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M2 5.5C4.5 4 8 4 12 6c4-2 7.5-2 10-.5V19c-2.5-1.500-6-1.500-10 .5-4-2-7.500-2-10-.5z"/><path d="M12 6v13.500"/></svg>
+      <span data-i18n="tabTopic">Topic</span></button>
+    <button class="tab" data-mode="exam" role="tab">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>
+      <span data-i18n="tabExam">Exam Prep</span></button>
+    <button class="tab" data-mode="homework" role="tab">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M17 3l4 4L8 20l-5 1 1-5z"/></svg>
+      <span data-i18n="tabHw">Homework</span></button>
+  </div>
+
+  <div class="card input-card">
+    <textarea id="prompt" rows="3" data-i18n-ph="phTopic"></textarea>
+    <div class="chips" id="chips"></div>
+    <div class="row">
+      <div class="tools">
+        <button class="tool" id="fileBtn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 17v-6m-3 3 3-3 3 3"/></svg>
+          <span data-i18n="addFile">Add File</span></button>
+        <button class="tool" id="urlBtn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
+          <span data-i18n="addUrl">Add URL</span></button>
+        <label class="tool select">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.500 3 14.500 0 18M12 3c-3 3.500-3 14.500 0 18"/></svg>
+          <select id="lessonLang" aria-label="Lesson language"><option value="en">English</option><option value="hi">हिन्दी</option></select>
+        </label>
+        <button class="tool mic" id="micBtn" aria-label="Speak">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+          <span data-i18n="mic">Speak</span></button>
+      </div>
+      <button class="btn accent big" id="startBtn" disabled data-i18n="start">Start</button>
+    </div>
+    <div class="urlbar" id="urlBar" hidden>
+      <input id="urlInput" type="url" inputmode="url" data-i18n-ph="urlPh">
+      <button class="btn dark small" id="urlAdd" data-i18n="add">Add</button>
+    </div>
+    <input type="file" id="fileInput" accept="image/*,.pdf,.txt,.md" multiple hidden>
+  </div>
+  <p class="free" data-i18n="free"></p>
+
+  <div class="ideas">
+    <div class="ideas-head">
+      <span class="hand" data-i18n="tryThese">or try one of these</span>
+      <button class="link small" id="moreIdeas">↻ <span data-i18n="moreIdeas">More ideas</span></button>
+    </div>
+    <ul id="ideaList"></ul>
+  </div>
+
+  <div class="history" id="historyBox" hidden>
+    <div class="ideas-head"><span class="hand" data-i18n="yourLessons">Your lessons</span>
+      <button class="link small" id="clearHist" data-i18n="clear">Clear</button></div>
+    <ul id="histList"></ul>
+  </div>
+
+  <section class="info" id="how">
+    <div class="step-card"><b>1</b><p data-en="Type or speak what you want to learn, or attach homework, a PDF or a link." data-hi="जो सीखना है लिखिए या बोलिए, या होमवर्क, PDF या लिंक जोड़िए।"></p></div>
+    <div class="step-card"><b>2</b><p data-en="Samjho explains out loud, in English or Hindi, and draws every step on the whiteboard." data-hi="समझो हिंदी या अंग्रेज़ी में बोलकर समझाता है और हर स्टेप बोर्ड पर बनाता है।"></p></div>
+    <div class="step-card"><b>3</b><p data-en="Ask doubts by voice, replay any step, and take a quick quiz to check yourself." data-hi="आवाज़ से डाउट पूछिए, कोई भी स्टेप दोबारा देखिए और क्विज़ से खुद को जाँचिए।"></p></div>
+  </section>
+  <section class="faq" id="faq">
+    <details><summary data-i18n="faq1q"></summary><p data-i18n="faq1a"></p></details>
+    <details><summary data-i18n="faq2q"></summary><p data-i18n="faq2a"></p></details>
+    <details><summary data-i18n="faq3q"></summary><p data-i18n="faq3a"></p></details>
+  </section>
+</section>
+
+<!-- LESSON -->
+<section id="lesson" class="view" hidden>
+  <div class="lesson-bar">
+    <button class="link" id="backBtn">← <span data-i18n="back">Back</span></button>
+    <h2 id="lessonTitle" class="hand"></h2>
+    <span class="steplabel" id="stepLabel"></span>
+  </div>
+  <div class="progress"><i id="progressBar"></i></div>
+  <div class="board-wrap">
+    <div class="board" id="board"></div>
+    <div class="loading" id="loading" hidden>
+      <svg viewBox="0 0 120 60" width="140"><path class="scribble" d="M5 40 C 20 5, 35 55, 50 25 S 80 5, 95 35 S 110 45, 115 30" fill="none" stroke="#ff9f1c" stroke-width="5" stroke-linecap="round"/></svg>
+      <p data-i18n="loading">Setting up your whiteboard...</p>
+    </div>
+  </div>
+  <div class="caption" id="caption" aria-live="polite"></div>
+  <div class="controls">
+    <button class="ctl" id="prevBtn" aria-label="Previous"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+    <button class="ctl main" id="playBtn" aria-label="Play"></button>
+    <button class="ctl" id="nextBtn" aria-label="Next"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+    <button class="ctl" id="replayBtn" aria-label="Replay"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.700L3 8"/><path d="M3 3v5h5"/></svg></button>
+    <button class="ctl txt" id="speedBtn">1×</button>
+    <button class="ctl" id="muteBtn" aria-label="Sound"></button>
+  </div>
+  <form class="doubt" id="doubtForm">
+    <input id="doubtInput" autocomplete="off" data-i18n-ph="askDoubt">
+    <button type="button" class="ctl" id="doubtMic" aria-label="Speak"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+    <button class="btn accent" type="submit" data-i18n="ask">Ask</button>
+  </form>
+</section>
+</main>
+
+<!-- AUTH MODAL -->
+<div class="overlay" id="authModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true">
+    <button class="x" id="authClose" aria-label="Close">×</button>
+    <h2 class="hand" data-i18n="createAcc">Create your account</h2>
+    <p class="muted" data-i18n="accSub"></p>
+    <button class="oauth" id="googleBtn">
+      <svg width="22" height="22" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.500c3.540 0 6.710 1.220 9.210 3.600l6.850-6.850C35.900 2.380 30.470 0 24 0 14.620 0 6.510 5.380 2.560 13.220l7.980 6.190C12.430 13.720 17.740 9.500 24 9.500z"/><path fill="#4285F4" d="M46.980 24.550c0-1.570-.15-3.090-.38-4.550H24v9.020h12.940c-.58 2.960-2.260 5.480-4.780 7.180l7.730 6c4.510-4.180 7.090-10.360 7.090-17.650z"/><path fill="#FBBC05" d="M10.530 28.590c-.48-1.450-.76-2.990-.76-4.590s.27-3.140.76-4.590l-7.980-6.190C.92 16.460 0 20.120 0 24c0 3.880.92 7.540 2.560 10.780l7.970-6.190z"/><path fill="#34A853" d="M24 48c6.480 0 11.930-2.130 15.890-5.810l-7.730-6c-2.150 1.450-4.920 2.300-8.160 2.300-6.260 0-11.570-4.220-13.470-9.910l-7.980 6.190C6.510 42.620 14.620 48 24 48z"/></svg>
+      <span data-i18n="google">Continue with Google</span></button>
+    <div class="or"><span data-i18n="or">or</span></div>
+    <input id="emailInput" type="email" autocomplete="email" data-i18n-ph="emailPh">
+    <button class="btn dark wide" id="emailBtn" data-i18n="email">Continue with email</button>
+    <button class="btn ghost wide" id="guestBtn" data-i18n="guest" hidden>Continue as guest (demo)</button>
+    <p class="msg" id="authMsg"></p>
+    <p class="tiny" data-i18n="terms"></p>
+    <p class="tiny" data-i18n="free"></p>
+  </div>
+</div>
+
+<!-- INSTALL BANNER -->
+<div class="install" id="installBar" hidden>
+  <img src="icons/icon-192.png" alt="" width="44" height="44">
+  <div><b data-i18n="installTitle">Install Samjho on your phone</b>
+    <span id="installSub" data-i18n="installSub"></span></div>
+  <button class="btn accent small" id="installBtn" data-i18n="install">Install</button>
+  <button class="x2" id="installClose" aria-label="Close">×</button>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="config.js"></script>
+<script src="i18n.js"></script>
+<script src="board.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
