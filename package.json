@@ -1,0 +1,8 @@
+{
+  "name": "samjho",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Samjho: AI whiteboard tutor (installable web app, English + Hindi)",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" }
+}
