@@ -3,7 +3,7 @@
 //           GEMINI_MODEL (optional), ALLOW_GUEST=1 (optional, local testing only)
 const dns = require('dns').promises;
 
-const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 const HOURLY_LIMIT = Number(process.env.HOURLY_LIMIT || 30);
 const hits = new Map(); // best-effort in-memory rate limit per user
 
@@ -180,7 +180,7 @@ module.exports = async (req, res) => {
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: buildSystem(mode, lang) }] },
         contents: [{ role: 'user', parts: content }],
-        generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 8000, temperature: 0.7 },
+        generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 16000 },
       }),
     });
     if (!r.ok) {
