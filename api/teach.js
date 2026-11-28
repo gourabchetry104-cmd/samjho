@@ -7,20 +7,30 @@ const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const HOURLY_LIMIT = Number(process.env.HOURLY_LIMIT || 30);
 const hits = new Map(); // best-effort in-memory rate limit per user
 
+// Returns { uid } on success or { error, status } so the app can show a useful message.
 async function verifyUser(authHeader) {
   const token = (authHeader || '').replace(/^Bearer\s+/i, '');
-  if (!token) return null;
-  if (token === 'guest') return process.env.ALLOW_GUEST === '1' ? 'guest' : null;
-  const key = process.env.FIREBASE_API_KEY;
-  if (!key) return null;
-  const r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${key}`, {
+  if (!token) return { error: 'login_required', status: 401 };
+  if (token === 'guest') {
+    return process.env.ALLOW_GUEST === '1' ? { uid: 'guest' } : { error: 'Guest mode is off on this server. Please sign in with Google.', status: 401 };
+  }
+  const key = (process.env.FIREBASE_API_KEY || '').trim();
+  if (!key) return { error: 'Server setup missing: add FIREBASE_API_KEY in Vercel Environment Variables, then redeploy.', status: 500 };
+  const r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(key)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ idToken: token }),
   });
-  if (!r.ok) return null;
+  if (!r.ok) {
+    let msg = '';
+    try { msg = (await r.json()).error.message || ''; } catch (e) { /* ignore */ }
+    console.error('Firebase lookup failed', r.status, msg);
+    if (/API key/i.test(msg)) return { error: 'Server setup problem: FIREBASE_API_KEY in Vercel is wrong. Copy the apiKey from Firebase again and redeploy.', status: 500 };
+    return { error: 'Your login could not be verified. Please sign out and sign in again.', status: 401 };
+  }
   const j = await r.json();
-  return j.users && j.users[0] ? j.users[0].localId : null;
+  const uid = j.users && j.users[0] ? j.users[0].localId : null;
+  return uid ? { uid } : { error: 'Your login could not be verified. Please sign out and sign in again.', status: 401 };
 }
 
 function rateLimited(uid) {
@@ -131,8 +141,9 @@ module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
   try {
-    const uid = await verifyUser(req.headers.authorization);
-    if (!uid) return res.status(401).json({ error: 'login_required' });
+    const auth = await verifyUser(req.headers.authorization);
+    if (!auth.uid) return res.status(auth.status).json({ error: auth.error });
+    const uid = auth.uid;
     if (rateLimited(uid)) return res.status(429).json({ error: 'You have reached the hourly limit. Please try again a little later.' });
     if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: 'Server is missing GEMINI_API_KEY' });
 
@@ -176,7 +187,10 @@ module.exports = async (req, res) => {
       const t = await r.text();
       console.error('Gemini error', r.status, t.slice(0, 500));
       if (r.status === 429) return res.status(429).json({ error: 'The free AI limit was reached for now. Please try again in a minute.' });
-      return res.status(502).json({ error: 'The AI is busy right now. Please try again.' });
+      let why = '';
+      try { why = (JSON.parse(t).error || {}).message || ''; } catch (e) { why = t; }
+      why = String(why).replace(/AIza[\w-]+/g, '[key]').slice(0, 160);
+      return res.status(502).json({ error: `The AI could not answer (Google says ${r.status}: ${why}). Please try again.` });
     }
     const j = await r.json();
     const parts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
