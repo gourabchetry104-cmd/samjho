@@ -4,6 +4,7 @@
 const dns = require('dns').promises;
 
 const MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+const FALLBACK = process.env.GEMINI_FALLBACK_MODEL || 'gemini-3.6-flash'; // used only if the main model keeps failing
 const HOURLY_LIMIT = Number(process.env.HOURLY_LIMIT || 30);
 const hits = new Map(); // best-effort in-memory rate limit per user
 
@@ -174,19 +175,33 @@ module.exports = async (req, res) => {
     if (!userText) return res.status(400).json({ error: 'Please type a topic or attach something.' });
     content.push({ text: userText });
 
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(MODEL)}:generateContent`, {
+    const reqBody = JSON.stringify({
+      systemInstruction: { parts: [{ text: buildSystem(mode, lang) }] },
+      contents: [{ role: 'user', parts: content }],
+      generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 16000 },
+    });
+    const callGemini = (model) => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: buildSystem(mode, lang) }] },
-        contents: [{ role: 'user', parts: content }],
-        generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 16000 },
-      }),
+      body: reqBody,
+      signal: AbortSignal.timeout(28000),
     });
+    // Google sometimes says "high demand" (503). Retry the main model twice, then try a backup model once.
+    const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
+    const plan = [[MODEL, 0], [MODEL, 1500], [FALLBACK, 500]].filter((x, i, arr) => x[0] !== FALLBACK || i === arr.length - 1);
+    let r = null;
+    for (const [model, wait] of plan) {
+      if (wait) await sleep(wait);
+      try { r = await callGemini(model); } catch (e) { r = { ok: false, status: 504, text: async () => 'timeout' }; }
+      if (r.ok) break;
+      if (![500, 502, 503, 504, 429, 404].includes(r.status)) break; // e.g. 400/403: retrying will not help
+      console.error('Gemini try failed', model, r.status);
+    }
     if (!r.ok) {
       const t = await r.text();
       console.error('Gemini error', r.status, t.slice(0, 500));
       if (r.status === 429) return res.status(429).json({ error: 'The free AI limit was reached for now. Please try again in a minute.' });
+      if (r.status === 503 || r.status === 504) return res.status(503).json({ error: 'Google AI is very busy right now. Please wait a few seconds and press Start again.' });
       let why = '';
       try { why = (JSON.parse(t).error || {}).message || ''; } catch (e) { why = t; }
       why = String(why).replace(/AIza[\w-]+/g, '[key]').slice(0, 160);
