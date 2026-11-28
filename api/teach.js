@@ -1,9 +1,9 @@
-// Serverless endpoint (Vercel). Verifies the Firebase login, then asks Claude to build a whiteboard lesson.
-// Env vars: ANTHROPIC_API_KEY (required), FIREBASE_API_KEY (required for real login),
-//           ANTHROPIC_MODEL (optional), ALLOW_GUEST=1 (optional, local testing only)
+// Serverless endpoint (Vercel). Verifies the Firebase login, then asks Google Gemini to build a whiteboard lesson.
+// Env vars: GEMINI_API_KEY (required), FIREBASE_API_KEY (required for real login),
+//           GEMINI_MODEL (optional), ALLOW_GUEST=1 (optional, local testing only)
 const dns = require('dns').promises;
 
-const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5';
+const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const HOURLY_LIMIT = Number(process.env.HOURLY_LIMIT || 30);
 const hits = new Map(); // best-effort in-memory rate limit per user
 
@@ -134,7 +134,7 @@ module.exports = async (req, res) => {
     const uid = await verifyUser(req.headers.authorization);
     if (!uid) return res.status(401).json({ error: 'login_required' });
     if (rateLimited(uid)) return res.status(429).json({ error: 'You have reached the hourly limit. Please try again a little later.' });
-    if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: 'Server is missing ANTHROPIC_API_KEY' });
+    if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: 'Server is missing GEMINI_API_KEY' });
 
     const b = req.body || {};
     const mode = ['topic', 'exam', 'homework', 'followup'].includes(b.mode) ? b.mode : 'topic';
@@ -144,16 +144,16 @@ module.exports = async (req, res) => {
     const content = [];
     for (const f of (Array.isArray(b.files) ? b.files : []).slice(0, 4)) {
       if (f.kind === 'image' && /^image\/(jpeg|png|webp|gif)$/.test(f.mime) && f.data) {
-        content.push({ type: 'image', source: { type: 'base64', media_type: f.mime, data: f.data } });
+        content.push({ inlineData: { mimeType: f.mime, data: f.data } });
       } else if (f.kind === 'pdf' && f.data) {
-        content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: f.data } });
+        content.push({ inlineData: { mimeType: 'application/pdf', data: f.data } });
       } else if (f.kind === 'text' && f.text) {
-        content.push({ type: 'text', text: `FILE "${String(f.name).slice(0, 80)}":\n${String(f.text).slice(0, 20000)}` });
+        content.push({ text: `FILE "${String(f.name).slice(0, 80)}":\n${String(f.text).slice(0, 20000)}` });
       }
     }
     if (b.url) {
       try {
-        content.push({ type: 'text', text: `WEB PAGE ${b.url}:\n${await fetchPage(String(b.url))}` });
+        content.push({ text: `WEB PAGE ${b.url}:\n${await fetchPage(String(b.url))}` });
       } catch (e) {
         return res.status(400).json({ error: 'Link problem: ' + e.message });
       }
@@ -161,29 +161,26 @@ module.exports = async (req, res) => {
     let userText = prompt || (content.length ? 'Teach me what is in the material above.' : '');
     if (mode === 'followup') userText = `LESSON SO FAR:\n${String(b.context || '').slice(0, 6000)}\n\nSTUDENT'S DOUBT: ${prompt}`;
     if (!userText) return res.status(400).json({ error: 'Please type a topic or attach something.' });
-    content.push({ type: 'text', text: userText });
+    content.push({ text: userText });
 
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(MODEL)}:generateContent`, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
       body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 6000,
-        system: buildSystem(mode, lang),
-        messages: [{ role: 'user', content }],
+        systemInstruction: { parts: [{ text: buildSystem(mode, lang) }] },
+        contents: [{ role: 'user', parts: content }],
+        generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 8000, temperature: 0.7 },
       }),
     });
     if (!r.ok) {
       const t = await r.text();
-      console.error('Anthropic error', r.status, t.slice(0, 500));
+      console.error('Gemini error', r.status, t.slice(0, 500));
+      if (r.status === 429) return res.status(429).json({ error: 'The free AI limit was reached for now. Please try again in a minute.' });
       return res.status(502).json({ error: 'The AI is busy right now. Please try again.' });
     }
     const j = await r.json();
-    const text = (j.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('');
+    const parts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
+    const text = parts.map((c) => c.text || '').join('');
     let lesson;
     try { lesson = clean(extractJson(text), mode); }
     catch (e) { console.error('Bad JSON', e.message); return res.status(502).json({ error: 'Could not build the lesson. Please try again.' }); }
