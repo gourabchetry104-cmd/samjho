@@ -43,3 +43,4 @@ server.js      local test server
 - Change the model with `ANTHROPIC_MODEL` if you like.
 - To rename the app, edit the name in `index.html`, `manifest.webmanifest`, `i18n.js` and replace the icons in `public/icons`.
 - Never put your `ANTHROPIC_API_KEY` in the `public` folder. It belongs only in `.env` or the Vercel settings.
+- 
