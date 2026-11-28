@@ -74,15 +74,28 @@
 
   const hasTTS = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
 
-  function pickVoice(lang) {
-    if (!hasTTS) return null;
-    const vs = speechSynthesis.getVoices();
-    const prefs = lang === 'hi' ? ['hi-in', 'hi'] : ['en-in', 'en-gb', 'en-us', 'en'];
-    for (const p of prefs) {
-      const v = vs.find((x) => x.lang.replace('_', '-').toLowerCase().startsWith(p));
-      if (v) return v;
-    }
-    return null;
+  function voicesFor(lang) {
+    if (!hasTTS) return [];
+    const base = lang === 'hi' ? 'hi' : 'en';
+    const score = (v) => {
+      const n = v.name.toLowerCase(), l = v.lang.replace('_', '-').toLowerCase();
+      let sc = 0;
+      if (/natural|neural/.test(n)) sc += 50;      // Edge "Natural" voices sound best
+      if (/online/.test(n)) sc += 20;
+      if (/google/.test(n)) sc += 15;
+      if (/microsoft/.test(n)) sc += 5;
+      if (l === (base === 'hi' ? 'hi-in' : 'en-in')) sc += 10;
+      return sc;
+    };
+    return speechSynthesis.getVoices()
+      .filter((v) => v.lang.replace('_', '-').toLowerCase().startsWith(base))
+      .sort((a, b) => score(b) - score(a));
+  }
+
+  function pickVoice(lang, name) {
+    const list = voicesFor(lang);
+    if (name) { const v = list.find((x) => x.name === name); if (v) return v; }
+    return list[0] || null;
   }
 
   class Board {
@@ -201,7 +214,7 @@
 
     speakText(text, onDone, token) {
       const parts = (text.match(/[^.!?।]+[.!?।]*/g) || [text]).map((x) => x.trim()).filter(Boolean);
-      const voice = pickVoice(this.lang);
+      const voice = pickVoice(this.lang, this.voiceName);
       const loc = this.lang === 'hi' ? 'hi-IN' : 'en-IN';
       let idx = 0;
       const nextPart = () => {
@@ -209,7 +222,7 @@
         if (idx >= parts.length) return onDone();
         const u = new SpeechSynthesisUtterance(parts[idx++]);
         u.lang = voice ? voice.lang : loc;
-        if (voice) u.voice = voice;
+        if (voice) { try { u.voice = voice; } catch (e) { /* use default voice */ } }
         u.rate = Math.min(1.6, 0.95 * this.speed);
         u.onend = nextPart;
         u.onerror = () => nextPart();
@@ -232,8 +245,8 @@
         }, 700 / this.speed));
       };
       const text = step.say || step.lines.join('. ');
-      const voiceOk = hasTTS && !this.muted && (this.lang !== 'hi' || pickVoice('hi'));
-      if (hasTTS && !this.muted && this.lang === 'hi' && !pickVoice('hi') && this.hooks.onNoVoice) this.hooks.onNoVoice();
+      const voiceOk = hasTTS && !this.muted && (this.lang !== 'hi' || pickVoice('hi', this.voiceName));
+      if (hasTTS && !this.muted && this.lang === 'hi' && !pickVoice('hi', this.voiceName) && this.hooks.onNoVoice) this.hooks.onNoVoice();
       if (voiceOk) {
         this.speakText(text, advance, token);
       } else {
@@ -296,6 +309,7 @@
     }
   }
 
+  Board.listVoices = voicesFor;
   window.Board = Board;
   window.__cleanSvg = cleanSvg;
 })();
